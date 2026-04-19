@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-shipping
+  namespace: rabbitmq-outbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-shipping
+  template:
+    metadata:
+      labels:
+        app: postgres-shipping
+    spec:
+      containers:
+        - name: postgres-shipping
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: shipping_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-shipping-secret
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-shipping-secret
+                  key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-shipping
+  namespace: rabbitmq-outbox
+spec:
+  selector:
+    app: postgres-shipping
+  ports:
+    - port: 5432
+      targetPort: 5432

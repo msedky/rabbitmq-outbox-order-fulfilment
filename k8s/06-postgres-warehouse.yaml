@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-warehouse
+  namespace: rabbitmq-outbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-warehouse
+  template:
+    metadata:
+      labels:
+        app: postgres-warehouse
+    spec:
+      containers:
+        - name: postgres-warehouse
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: warehouse_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-warehouse-secret
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-warehouse-secret
+                  key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-warehouse
+  namespace: rabbitmq-outbox
+spec:
+  selector:
+    app: postgres-warehouse
+  ports:
+    - port: 5432
+      targetPort: 5432
