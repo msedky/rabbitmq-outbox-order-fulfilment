@@ -110,6 +110,15 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("Order is already cancelled");
         }
 
+        if (order.getStatus() == OrderStatus.OUT_FOR_DELIVERY) {
+            throw new IllegalStateException(
+                    "Cannot cancel an order that is already out for delivery");
+        }
+
+        if (order.getStatus() == OrderStatus.FAILED) {
+            throw new IllegalStateException("Cannot cancel a failed order");
+        }
+
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         OrderEntity savedOrder = orderRepository.save(order);
