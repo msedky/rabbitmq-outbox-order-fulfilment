@@ -19,6 +19,9 @@ public class ShipmentResponse {
     private String deliveryAddress;
     private String status;
     private Instant scheduledAt;
+    private Instant dispatchedAt;
+    private Instant deliveredAt;
+    private Instant failedAt;
     private Instant createdAt;
     private Instant updatedAt;
 }

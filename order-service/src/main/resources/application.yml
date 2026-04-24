@@ -18,3 +18,9 @@ spring:
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        retry:
+          enabled: true
+          max-retries: ${SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES:3}

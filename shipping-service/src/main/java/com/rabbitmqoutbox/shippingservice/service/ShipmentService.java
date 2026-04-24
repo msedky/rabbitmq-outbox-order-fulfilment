@@ -10,6 +10,12 @@ public interface ShipmentService {
 
     void scheduleShipment(StockReservedEvent event);
 
+    ShipmentResponse dispatch(UUID shipmentId);
+
+    ShipmentResponse deliver(UUID shipmentId);
+
+    ShipmentResponse fail(UUID shipmentId, String failureReason);
+
     ShipmentResponse getById(UUID shipmentId);
 
     List<ShipmentResponse> getAll();

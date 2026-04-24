@@ -41,4 +41,19 @@ public class GlobalExceptionHandler {
                                 .build())
                         .build());
     }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(
+            IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.<Void>builder()
+                        .success(false)
+                        .data(null)
+                        .error(ApiError.builder()
+                                .code("INVALID_SHIPMENT_STATE")
+                                .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .build())
+                        .build());
+    }
 }

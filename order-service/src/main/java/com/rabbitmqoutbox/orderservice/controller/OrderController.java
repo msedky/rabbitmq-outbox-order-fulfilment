@@ -29,6 +29,15 @@ public class OrderController {
                 .build();
     }
 
+    @PatchMapping("/{orderId}/cancel")
+    public ApiResponse<OrderResponse> cancelOrder(@PathVariable UUID orderId) {
+        return ApiResponse.<OrderResponse>builder()
+                .success(true)
+                .data(orderService.cancel(orderId))
+                .error(null)
+                .build();
+    }
+
     @GetMapping("/{orderId}")
     public ApiResponse<OrderResponse> getOrderById(@PathVariable UUID orderId) {
         return ApiResponse.<OrderResponse>builder()

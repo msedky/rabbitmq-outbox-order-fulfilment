@@ -22,6 +22,12 @@ public class OrderResponse {
     private String currency;
     private String status;
     private List<OrderItemResponse> items;
+    private Instant confirmedAt;
+    private Instant shippedAt;
+    private Instant dispatchedAt;
+    private Instant deliveredAt;
+    private Instant cancelledAt;
+    private Instant failedAt;
     private Instant createdAt;
     private Instant updatedAt;
 }

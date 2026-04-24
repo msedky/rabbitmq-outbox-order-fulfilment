@@ -3,10 +3,7 @@ package com.rabbitmqoutbox.warehouseservice.service.impl;
 import com.rabbitmqoutbox.warehouseservice.exception.InsufficientStockException;
 import com.rabbitmqoutbox.warehouseservice.exception.StockNotFoundException;
 import com.rabbitmqoutbox.warehouseservice.mapper.StockMapper;
-import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEvent;
-import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEventItem;
-import com.rabbitmqoutbox.warehouseservice.messaging.event.StockReservedEvent;
-import com.rabbitmqoutbox.warehouseservice.messaging.event.StockReservedEventItem;
+import com.rabbitmqoutbox.warehouseservice.messaging.event.*;
 import com.rabbitmqoutbox.warehouseservice.model.dto.request.CreateStockRequest;
 import com.rabbitmqoutbox.warehouseservice.model.dto.response.StockResponse;
 import com.rabbitmqoutbox.warehouseservice.model.entity.StockEntity;
@@ -111,5 +108,58 @@ public class StockServiceImpl implements StockService {
         );
 
         log.info("Outbox event saved for STOCK_RESERVED, orderId={}", event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public void releaseStock(OrderCancelledEvent event) {
+
+        List<StockReservationEntity> reservations = stockReservationRepository
+                .findByOrderIdAndStatus(event.getOrderId(), ReservationStatus.RESERVED);
+
+        if (reservations.isEmpty()) {
+            log.warn("No RESERVED reservations found for orderId={}", event.getOrderId());
+            return;
+        }
+
+        for (StockReservationEntity reservation : reservations) {
+
+            StockEntity stock = stockRepository.findByProductId(reservation.getProductId())
+                    .orElseThrow(() -> new StockNotFoundException(
+                            "Stock not found for productId: " + reservation.getProductId()));
+
+            stock.setAvailableQuantity(
+                    stock.getAvailableQuantity() + reservation.getQuantity());
+            stock.setReservedQuantity(
+                    stock.getReservedQuantity() - reservation.getQuantity());
+            stockRepository.save(stock);
+
+            reservation.setStatus(ReservationStatus.RELEASED);
+            stockReservationRepository.save(reservation);
+
+            log.info("Stock released for productId={}, orderId={}",
+                    reservation.getProductId(), event.getOrderId());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void fulfillStock(ShipmentDeliveredEvent event) {
+
+        List<StockReservationEntity> reservations = stockReservationRepository
+                .findByOrderIdAndStatus(event.getOrderId(), ReservationStatus.RESERVED);
+
+        if (reservations.isEmpty()) {
+            log.warn("No RESERVED reservations found for orderId={}", event.getOrderId());
+            return;
+        }
+
+        for (StockReservationEntity reservation : reservations) {
+            reservation.setStatus(ReservationStatus.FULFILLED);
+            stockReservationRepository.save(reservation);
+
+            log.info("Stock fulfilled for productId={}, orderId={}",
+                    reservation.getProductId(), event.getOrderId());
+        }
     }
 }

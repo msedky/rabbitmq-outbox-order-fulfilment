@@ -2,8 +2,7 @@ package com.rabbitmqoutbox.shippingservice.service.impl;
 
 import com.rabbitmqoutbox.shippingservice.exception.ShipmentNotFoundException;
 import com.rabbitmqoutbox.shippingservice.mapper.ShipmentMapper;
-import com.rabbitmqoutbox.shippingservice.messaging.event.ShipmentScheduledEvent;
-import com.rabbitmqoutbox.shippingservice.messaging.event.StockReservedEvent;
+import com.rabbitmqoutbox.shippingservice.messaging.event.*;
 import com.rabbitmqoutbox.shippingservice.model.dto.response.ShipmentResponse;
 import com.rabbitmqoutbox.shippingservice.model.entity.ShipmentEntity;
 import com.rabbitmqoutbox.shippingservice.model.enums.ShipmentStatus;
@@ -66,6 +65,142 @@ public class ShipmentServiceImpl implements ShipmentService {
 
         log.info("Outbox event saved for SHIPMENT_SCHEDULED, orderId={}",
                 event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public ShipmentResponse dispatch(UUID shipmentId) {
+
+        ShipmentEntity shipment = shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> new ShipmentNotFoundException(
+                        "Shipment not found with id: " + shipmentId));
+
+        if (shipment.getStatus() != ShipmentStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                    "Cannot dispatch a shipment with status: " + shipment.getStatus());
+        }
+
+        Instant dispatchedAt = Instant.now();
+        shipment.setStatus(ShipmentStatus.OUT_FOR_DELIVERY);
+        shipment.setDispatchedAt(dispatchedAt);
+        ShipmentEntity savedShipment = shipmentRepository.save(shipment);
+
+        log.info("Shipment dispatched for shipmentId={}, orderId={}",
+                shipmentId, savedShipment.getOrderId());
+
+        ShipmentOutForDeliveryEvent shipmentOutForDeliveryEvent =
+                ShipmentOutForDeliveryEvent.builder()
+                        .eventId(UUID.randomUUID().toString())
+                        .orderId(savedShipment.getOrderId())
+                        .shipmentId(savedShipment.getId())
+                        .customerId(savedShipment.getCustomerId())
+                        .customerEmail(savedShipment.getCustomerEmail())
+                        .deliveryAddress(savedShipment.getDeliveryAddress())
+                        .dispatchedAt(dispatchedAt)
+                        .occurredAt(Instant.now())
+                        .build();
+
+        outboxEventService.saveEvent(
+                savedShipment.getOrderId().toString(),
+                "SHIPMENT",
+                "SHIPMENT_OUT_FOR_DELIVERY",
+                shipmentOutForDeliveryEvent
+        );
+
+        log.info("Outbox event saved for SHIPMENT_OUT_FOR_DELIVERY, shipmentId={}",
+                shipmentId);
+
+        return shipmentMapper.toResponse(savedShipment);
+    }
+
+    @Override
+    @Transactional
+    public ShipmentResponse deliver(UUID shipmentId) {
+
+        ShipmentEntity shipment = shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> new ShipmentNotFoundException(
+                        "Shipment not found with id: " + shipmentId));
+
+        if (shipment.getStatus() != ShipmentStatus.OUT_FOR_DELIVERY) {
+            throw new IllegalStateException(
+                    "Cannot deliver a shipment with status: " + shipment.getStatus());
+        }
+
+        Instant deliveredAt = Instant.now();
+        shipment.setStatus(ShipmentStatus.DELIVERED);
+        shipment.setDeliveredAt(deliveredAt);
+        ShipmentEntity savedShipment = shipmentRepository.save(shipment);
+
+        log.info("Shipment delivered for shipmentId={}, orderId={}",
+                shipmentId, savedShipment.getOrderId());
+
+        ShipmentDeliveredEvent shipmentDeliveredEvent = ShipmentDeliveredEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .orderId(savedShipment.getOrderId())
+                .shipmentId(savedShipment.getId())
+                .customerId(savedShipment.getCustomerId())
+                .customerEmail(savedShipment.getCustomerEmail())
+                .deliveredAt(deliveredAt)
+                .occurredAt(Instant.now())
+                .build();
+
+        outboxEventService.saveEvent(
+                savedShipment.getOrderId().toString(),
+                "SHIPMENT",
+                "SHIPMENT_DELIVERED",
+                shipmentDeliveredEvent
+        );
+
+        log.info("Outbox event saved for SHIPMENT_DELIVERED, shipmentId={}", shipmentId);
+
+        return shipmentMapper.toResponse(savedShipment);
+    }
+
+    @Override
+    @Transactional
+    public ShipmentResponse fail(UUID shipmentId, String failureReason) {
+
+        ShipmentEntity shipment = shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> new ShipmentNotFoundException(
+                        "Shipment not found with id: " + shipmentId));
+
+        if (shipment.getStatus() == ShipmentStatus.DELIVERED) {
+            throw new IllegalStateException("Cannot fail a delivered shipment");
+        }
+
+        if (shipment.getStatus() == ShipmentStatus.FAILED) {
+            throw new IllegalStateException("Shipment is already failed");
+        }
+
+        Instant failedAt = Instant.now();
+        shipment.setStatus(ShipmentStatus.FAILED);
+        shipment.setFailedAt(failedAt);
+        ShipmentEntity savedShipment = shipmentRepository.save(shipment);
+
+        log.info("Shipment failed for shipmentId={}, orderId={}",
+                shipmentId, savedShipment.getOrderId());
+
+        ShipmentFailedEvent shipmentFailedEvent = ShipmentFailedEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .orderId(savedShipment.getOrderId())
+                .shipmentId(savedShipment.getId())
+                .customerId(savedShipment.getCustomerId())
+                .customerEmail(savedShipment.getCustomerEmail())
+                .failureReason(failureReason)
+                .failedAt(failedAt)
+                .occurredAt(Instant.now())
+                .build();
+
+        outboxEventService.saveEvent(
+                savedShipment.getOrderId().toString(),
+                "SHIPMENT",
+                "SHIPMENT_FAILED",
+                shipmentFailedEvent
+        );
+
+        log.info("Outbox event saved for SHIPMENT_FAILED, shipmentId={}", shipmentId);
+
+        return shipmentMapper.toResponse(savedShipment);
     }
 
     @Override

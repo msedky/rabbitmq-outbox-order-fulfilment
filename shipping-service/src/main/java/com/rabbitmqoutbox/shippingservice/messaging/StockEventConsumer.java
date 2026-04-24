@@ -1,12 +1,19 @@
 package com.rabbitmqoutbox.shippingservice.messaging;
 
+import com.rabbitmq.client.Channel;
 import com.rabbitmqoutbox.shippingservice.config.RabbitMQConfig;
 import com.rabbitmqoutbox.shippingservice.messaging.event.StockReservedEvent;
 import com.rabbitmqoutbox.shippingservice.service.ShipmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -16,8 +23,31 @@ public class StockEventConsumer {
     private final ShipmentService shipmentService;
 
     @RabbitListener(queues = RabbitMQConfig.STOCK_RESERVED_QUEUE)
-    public void handleStockReserved(StockReservedEvent event) {
-        log.info("Received STOCK_RESERVED event for orderId={}", event.getOrderId());
-        shipmentService.scheduleShipment(event);
+    public void handleStockReserved(StockReservedEvent event,
+                                    Channel channel,
+                                    @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
+                                    @Header(value = "x-death", required = false) List<Map<String, Object>> xDeath)
+            throws IOException {
+        try {
+            shipmentService.scheduleShipment(event);
+            channel.basicAck(deliveryTag, false);
+        } catch (Exception e) {
+            long retryCount = getRetryCount(xDeath);
+            if (retryCount >= 3) {
+                log.error("Max retries reached for orderId={}, sending to DLQ",
+                        event.getOrderId());
+                channel.basicReject(deliveryTag, false);
+            } else {
+                log.warn("Retryable failure attempt {} for orderId={}",
+                        retryCount + 1, event.getOrderId());
+                channel.basicReject(deliveryTag, true);
+            }
+        }
+    }
+
+    private long getRetryCount(List<Map<String, Object>> xDeath) {
+        if (xDeath == null || xDeath.isEmpty()) return 0L;
+        Object count = xDeath.get(0).get("count");
+        return count instanceof Long ? (Long) count : 0L;
     }
 }

@@ -1,6 +1,8 @@
 package com.rabbitmqoutbox.warehouseservice.service;
 
+import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderCancelledEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEvent;
+import com.rabbitmqoutbox.warehouseservice.messaging.event.ShipmentDeliveredEvent;
 import com.rabbitmqoutbox.warehouseservice.model.dto.request.CreateStockRequest;
 import com.rabbitmqoutbox.warehouseservice.model.dto.response.StockResponse;
 
@@ -13,4 +15,8 @@ public interface StockService {
     List<StockResponse> getAll();
 
     void reserveStock(OrderPlacedEvent event);
+
+    void releaseStock(OrderCancelledEvent event);
+
+    void fulfillStock(ShipmentDeliveredEvent event);
 }

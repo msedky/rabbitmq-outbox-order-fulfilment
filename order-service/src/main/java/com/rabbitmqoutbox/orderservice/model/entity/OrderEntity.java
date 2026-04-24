@@ -46,9 +46,29 @@ public class OrderEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItemEntity> items;
 
+    @Column
+    private Instant confirmedAt;
+
+    @Column
+    private Instant shippedAt;
+
+    @Column
+    private Instant dispatchedAt;
+
+    @Column
+    private Instant deliveredAt;
+
+    @Column
+    private Instant cancelledAt;
+
+    @Column
+    private Instant failedAt;
+
     @CreationTimestamp
+    @Column
     private Instant createdAt;
 
     @UpdateTimestamp
+    @Column
     private Instant updatedAt;
 }

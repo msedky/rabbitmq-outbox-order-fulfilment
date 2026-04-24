@@ -2,8 +2,7 @@ package com.rabbitmqoutbox.orderservice.service.impl;
 
 import com.rabbitmqoutbox.orderservice.exception.OrderNotFoundException;
 import com.rabbitmqoutbox.orderservice.mapper.OrderMapper;
-import com.rabbitmqoutbox.orderservice.messaging.event.OrderPlacedEvent;
-import com.rabbitmqoutbox.orderservice.messaging.event.OrderPlacedEventItem;
+import com.rabbitmqoutbox.orderservice.messaging.event.*;
 import com.rabbitmqoutbox.orderservice.model.dto.request.CreateOrderRequest;
 import com.rabbitmqoutbox.orderservice.model.dto.response.OrderResponse;
 import com.rabbitmqoutbox.orderservice.model.entity.OrderEntity;
@@ -97,6 +96,47 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
+    public OrderResponse cancel(UUID orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + orderId));
+
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Cannot cancel a delivered order");
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Order is already cancelled");
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledAt(Instant.now());
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        log.info("Order cancelled with id={}", orderId);
+
+        OrderCancelledEvent event = OrderCancelledEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .orderId(savedOrder.getId())
+                .customerId(savedOrder.getCustomerId())
+                .customerEmail(savedOrder.getCustomerEmail())
+                .occurredAt(Instant.now())
+                .build();
+
+        outboxEventService.saveEvent(
+                savedOrder.getId().toString(),
+                "ORDER",
+                "ORDER_CANCELLED",
+                event
+        );
+
+        log.info("Outbox event saved for ORDER_CANCELLED, orderId={}", orderId);
+
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public OrderResponse getById(UUID orderId) {
         OrderEntity order = orderRepository.findById(orderId)
@@ -109,5 +149,75 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getAll() {
         return orderMapper.toResponseList(orderRepository.findAll());
+    }
+
+    @Override
+    @Transactional
+    public void confirmOrder(StockReservedEvent event) {
+        OrderEntity order = orderRepository.findById(event.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + event.getOrderId()));
+
+        order.setStatus(OrderStatus.CONFIRMED);
+        order.setConfirmedAt(Instant.now());
+        orderRepository.save(order);
+
+        log.info("Order confirmed for orderId={}", event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public void markAsShipped(ShipmentScheduledEvent event) {
+        OrderEntity order = orderRepository.findById(event.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + event.getOrderId()));
+
+        order.setStatus(OrderStatus.SHIPPED);
+        order.setShippedAt(Instant.now());
+        orderRepository.save(order);
+
+        log.info("Order marked as SHIPPED for orderId={}", event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public void markAsDelivered(ShipmentDeliveredEvent event) {
+        OrderEntity order = orderRepository.findById(event.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + event.getOrderId()));
+
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setDeliveredAt(event.getDeliveredAt());
+        orderRepository.save(order);
+
+        log.info("Order marked as DELIVERED for orderId={}", event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public void markAsOutForDelivery(ShipmentOutForDeliveryEvent event) {
+        OrderEntity order = orderRepository.findById(event.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + event.getOrderId()));
+
+        order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
+        order.setDispatchedAt(event.getDispatchedAt());
+        orderRepository.save(order);
+
+        log.info("Order marked as OUT_FOR_DELIVERY for orderId={}", event.getOrderId());
+    }
+
+    @Override
+    @Transactional
+    public void markAsFailed(ShipmentFailedEvent event) {
+        OrderEntity order = orderRepository.findById(event.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException(
+                        "Order not found with id: " + event.getOrderId()));
+
+        order.setStatus(OrderStatus.FAILED);
+        order.setFailedAt(event.getFailedAt());
+        orderRepository.save(order);
+
+        log.info("Order marked as FAILED for orderId={}", event.getOrderId());
     }
 }

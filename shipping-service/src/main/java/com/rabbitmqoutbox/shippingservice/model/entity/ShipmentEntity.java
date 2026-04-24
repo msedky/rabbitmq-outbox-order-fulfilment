@@ -38,7 +38,17 @@ public class ShipmentEntity {
     @Column(nullable = false)
     private ShipmentStatus status;
 
+    @Column
     private Instant scheduledAt;
+
+    @Column
+    private Instant dispatchedAt;
+
+    @Column
+    private Instant deliveredAt;
+
+    @Column
+    private Instant failedAt;
 
     @CreationTimestamp
     private Instant createdAt;
