@@ -16,6 +16,8 @@ public interface ShipmentService {
 
     ShipmentResponse fail(UUID shipmentId, String failureReason);
 
+    void cancelShipment(UUID orderId);
+
     ShipmentResponse getById(UUID shipmentId);
 
     List<ShipmentResponse> getAll();

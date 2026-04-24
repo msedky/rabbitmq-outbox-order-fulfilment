@@ -22,6 +22,7 @@ public class ShipmentResponse {
     private Instant dispatchedAt;
     private Instant deliveredAt;
     private Instant failedAt;
+    private Instant cancelledAt;
     private Instant createdAt;
     private Instant updatedAt;
 }

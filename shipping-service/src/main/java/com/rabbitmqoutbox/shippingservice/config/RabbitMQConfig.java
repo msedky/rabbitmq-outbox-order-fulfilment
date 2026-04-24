@@ -31,6 +31,13 @@ public class RabbitMQConfig {
     public static final String SHIPMENT_FAILED_EXCHANGE = "ob.shipment.failed.exchange";
     public static final String SHIPMENT_FAILED_ROUTING_KEY = "ob.shipment.failed";
 
+    public static final String ORDER_CANCELLED_QUEUE = "ob.order.cancelled.shipping.queue";
+    public static final String ORDER_CANCELLED_EXCHANGE = "ob.order.cancelled.exchange";
+    public static final String ORDER_CANCELLED_ROUTING_KEY = "ob.order.cancelled";
+    public static final String ORDER_CANCELLED_DLX = "ob.order.cancelled.shipping.dlx";
+    public static final String ORDER_CANCELLED_DLQ = "ob.order.cancelled.shipping.dlq";
+
+
     // Inbound — stock reserved
     @Bean
     public TopicExchange stockReservedExchange() {
@@ -89,6 +96,38 @@ public class RabbitMQConfig {
     @Bean
     public TopicExchange shipmentFailedExchange() {
         return new TopicExchange(SHIPMENT_FAILED_EXCHANGE);
+    }
+
+    @Bean public TopicExchange orderCancelledExchange() {
+        return new TopicExchange(ORDER_CANCELLED_EXCHANGE);
+    }
+
+    @Bean public TopicExchange orderCancelledDlx() {
+        return new TopicExchange(ORDER_CANCELLED_DLX);
+    }
+
+    @Bean public Queue orderCancelledQueue() {
+        return QueueBuilder.durable(ORDER_CANCELLED_QUEUE)
+                .withArgument("x-dead-letter-exchange", ORDER_CANCELLED_DLX)
+                .build();
+    }
+
+    @Bean public Queue orderCancelledDlq() {
+        return QueueBuilder.durable(ORDER_CANCELLED_DLQ).build();
+    }
+
+    @Bean public Binding orderCancelledBinding(TopicExchange orderCancelledExchange,
+                                               Queue orderCancelledQueue) {
+        return BindingBuilder.bind(orderCancelledQueue)
+                .to(orderCancelledExchange)
+                .with(ORDER_CANCELLED_ROUTING_KEY);
+    }
+
+    @Bean public Binding orderCancelledDlqBinding(TopicExchange orderCancelledDlx,
+                                                  Queue orderCancelledDlq) {
+        return BindingBuilder.bind(orderCancelledDlq)
+                .to(orderCancelledDlx)
+                .with("#");
     }
 
     @Bean

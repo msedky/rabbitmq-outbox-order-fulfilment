@@ -60,7 +60,7 @@ public class OrderServiceImpl implements OrderService {
 
         items.forEach(item -> item.setOrder(order));
 
-        OrderEntity savedOrder = orderRepository.save(order);
+        OrderEntity savedOrder = orderRepository.saveAndFlush(order);
 
         log.info("Order saved with id={} and status=PENDING", savedOrder.getId());
 

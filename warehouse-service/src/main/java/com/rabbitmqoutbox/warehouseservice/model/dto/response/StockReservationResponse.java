@@ -1,5 +1,6 @@
 package com.rabbitmqoutbox.warehouseservice.model.dto.response;
 
+import com.rabbitmqoutbox.warehouseservice.model.enums.ReservationStatus;
 import lombok.*;
 
 import java.time.Instant;
@@ -17,6 +18,11 @@ public class StockReservationResponse {
     private String productId;
     private String productName;
     private Integer quantity;
-    private String status;
+    private ReservationStatus status;
+    private Integer quantityBeforeReservation;
+    private Integer quantityAfterReservation;
     private Instant createdAt;
+    private Instant updatedAt;
+    private Instant releasedAt;
+    private Instant fulfilledAt;
 }

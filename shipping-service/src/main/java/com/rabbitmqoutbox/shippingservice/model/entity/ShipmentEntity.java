@@ -50,6 +50,9 @@ public class ShipmentEntity {
     @Column
     private Instant failedAt;
 
+    @Column
+    private Instant cancelledAt;
+
     @CreationTimestamp
     private Instant createdAt;
 

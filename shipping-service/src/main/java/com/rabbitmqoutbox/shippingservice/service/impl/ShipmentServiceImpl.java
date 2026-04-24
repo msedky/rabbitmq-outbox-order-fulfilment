@@ -204,6 +204,29 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
 
     @Override
+    @Transactional
+    public void cancelShipment(UUID orderId) {
+        ShipmentEntity shipment = shipmentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new ShipmentNotFoundException(
+                        "Shipment not found for orderId: " + orderId));
+
+        if (shipment.getStatus() == ShipmentStatus.DELIVERED) {
+            throw new IllegalStateException("Cannot cancel a delivered shipment");
+        }
+
+        if (shipment.getStatus() == ShipmentStatus.CANCELLED) {
+            log.warn("Shipment already cancelled for orderId={}", orderId);
+            return;
+        }
+
+        shipment.setStatus(ShipmentStatus.CANCELLED);
+        shipment.setCancelledAt(Instant.now());
+        shipmentRepository.save(shipment);
+
+        log.info("Shipment cancelled for orderId={}", orderId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ShipmentResponse getById(UUID shipmentId) {
         ShipmentEntity shipment = shipmentRepository.findById(shipmentId)

@@ -7,6 +7,7 @@ import com.rabbitmqoutbox.warehouseservice.exception.StockNotFoundException;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderCancelledEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.ShipmentDeliveredEvent;
+import com.rabbitmqoutbox.warehouseservice.messaging.event.ShipmentOutForDeliveryEvent;
 import com.rabbitmqoutbox.warehouseservice.service.StockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -80,11 +81,11 @@ public class OrderEventConsumer {
         }
     }
 
-    @RabbitListener(queues = RabbitMQConfig.SHIPMENT_DELIVERED_QUEUE)
-    public void handleShipmentDelivered(ShipmentDeliveredEvent event,
-                                        Channel channel,
-                                        @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
-                                        @Header(value = "x-death", required = false) List<Map<String, Object>> xDeath)
+    @RabbitListener(queues = RabbitMQConfig.SHIPMENT_OUT_FOR_DELIVERY_QUEUE)
+    public void handleShipmentOutForDelivery(ShipmentOutForDeliveryEvent event,
+                                             Channel channel,
+                                             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
+                                             @Header(value = "x-death", required = false) List<Map<String, Object>> xDeath)
             throws IOException {
         try {
             stockService.fulfillStock(event);

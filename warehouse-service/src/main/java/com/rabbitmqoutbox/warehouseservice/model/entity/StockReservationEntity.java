@@ -4,6 +4,7 @@ import com.rabbitmqoutbox.warehouseservice.model.enums.ReservationStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -34,6 +35,21 @@ public class StockReservationEntity {
     @Column(nullable = false)
     private ReservationStatus status;
 
+    @Column(nullable = false)
+    private Integer quantityBeforeReservation;
+
+    @Column(nullable = false)
+    private Integer quantityAfterReservation;
+
     @CreationTimestamp
     private Instant createdAt;
+
+    @UpdateTimestamp
+    private Instant updatedAt;
+
+    @Column
+    private Instant releasedAt;
+
+    @Column
+    private Instant fulfilledAt;
 }

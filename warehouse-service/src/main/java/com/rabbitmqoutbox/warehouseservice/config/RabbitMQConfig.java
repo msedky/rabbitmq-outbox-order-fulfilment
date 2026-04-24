@@ -26,11 +26,12 @@ public class RabbitMQConfig {
     public static final String ORDER_CANCELLED_DLQ = "ob.order.cancelled.warehouse.dlq";
 
     // Inbound — shipping-service publishes, warehouse-service consumes
-    public static final String SHIPMENT_DELIVERED_QUEUE = "ob.shipment.delivered.warehouse.queue";
-    public static final String SHIPMENT_DELIVERED_EXCHANGE = "ob.shipment.delivered.exchange";
-    public static final String SHIPMENT_DELIVERED_ROUTING_KEY = "ob.shipment.delivered";
-    public static final String SHIPMENT_DELIVERED_DLX = "ob.shipment.delivered.warehouse.dlx";
-    public static final String SHIPMENT_DELIVERED_DLQ = "ob.shipment.delivered.warehouse.dlq";
+    public static final String SHIPMENT_OUT_FOR_DELIVERY_QUEUE = "ob.shipment.out-for-delivery.warehouse.queue";
+    public static final String SHIPMENT_OUT_FOR_DELIVERY_EXCHANGE = "ob.shipment.out-for-delivery.exchange";
+    public static final String SHIPMENT_OUT_FOR_DELIVERY_ROUTING_KEY = "ob.shipment.out-for-delivery";
+    public static final String SHIPMENT_OUT_FOR_DELIVERY_DLX = "ob.shipment.out-for-delivery.warehouse.dlx";
+    public static final String SHIPMENT_OUT_FOR_DELIVERY_DLQ = "ob.shipment.out-for-delivery.warehouse.dlq";
+
 
     // Outbound exchange only
     public static final String STOCK_RESERVED_EXCHANGE = "ob.stock.reserved.exchange";
@@ -114,42 +115,41 @@ public class RabbitMQConfig {
                 .with("#");
     }
 
-    // Inbound — shipment delivered
     @Bean
-    public TopicExchange shipmentDeliveredExchange() {
-        return new TopicExchange(SHIPMENT_DELIVERED_EXCHANGE);
+    public TopicExchange shipmentOutForDeliveryExchange() {
+        return new TopicExchange(SHIPMENT_OUT_FOR_DELIVERY_EXCHANGE);
     }
 
     @Bean
-    public TopicExchange shipmentDeliveredDlx() {
-        return new TopicExchange(SHIPMENT_DELIVERED_DLX);
+    public TopicExchange shipmentOutForDeliveryDlx() {
+        return new TopicExchange(SHIPMENT_OUT_FOR_DELIVERY_DLX);
     }
 
     @Bean
-    public Queue shipmentDeliveredQueue() {
-        return QueueBuilder.durable(SHIPMENT_DELIVERED_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_DELIVERED_DLX)
+    public Queue shipmentOutForDeliveryQueue() {
+        return QueueBuilder.durable(SHIPMENT_OUT_FOR_DELIVERY_QUEUE)
+                .withArgument("x-dead-letter-exchange", SHIPMENT_OUT_FOR_DELIVERY_DLX)
                 .build();
     }
 
     @Bean
-    public Queue shipmentDeliveredDlq() {
-        return QueueBuilder.durable(SHIPMENT_DELIVERED_DLQ).build();
+    public Queue shipmentOutForDeliveryDlq() {
+        return QueueBuilder.durable(SHIPMENT_OUT_FOR_DELIVERY_DLQ).build();
     }
 
     @Bean
-    public Binding shipmentDeliveredBinding(TopicExchange shipmentDeliveredExchange,
-                                            Queue shipmentDeliveredQueue) {
-        return BindingBuilder.bind(shipmentDeliveredQueue)
-                .to(shipmentDeliveredExchange)
-                .with(SHIPMENT_DELIVERED_ROUTING_KEY);
+    public Binding shipmentOutForDeliveryBinding(TopicExchange shipmentOutForDeliveryExchange,
+                                                 Queue shipmentOutForDeliveryQueue) {
+        return BindingBuilder.bind(shipmentOutForDeliveryQueue)
+                .to(shipmentOutForDeliveryExchange)
+                .with(SHIPMENT_OUT_FOR_DELIVERY_ROUTING_KEY);
     }
 
     @Bean
-    public Binding shipmentDeliveredDlqBinding(TopicExchange shipmentDeliveredDlx,
-                                               Queue shipmentDeliveredDlq) {
-        return BindingBuilder.bind(shipmentDeliveredDlq)
-                .to(shipmentDeliveredDlx)
+    public Binding shipmentOutForDeliveryDlqBinding(TopicExchange shipmentOutForDeliveryDlx,
+                                                    Queue shipmentOutForDeliveryDlq) {
+        return BindingBuilder.bind(shipmentOutForDeliveryDlq)
+                .to(shipmentOutForDeliveryDlx)
                 .with("#");
     }
 

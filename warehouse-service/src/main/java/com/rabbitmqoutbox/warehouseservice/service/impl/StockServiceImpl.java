@@ -42,7 +42,7 @@ public class StockServiceImpl implements StockService {
                 .reservedQuantity(0)
                 .build();
 
-        StockEntity savedStock = stockRepository.save(stock);
+        StockEntity savedStock = stockRepository.saveAndFlush(stock);
         log.info("Stock created for productId={}", savedStock.getProductId());
         return stockMapper.toResponse(savedStock);
     }
@@ -67,6 +67,8 @@ public class StockServiceImpl implements StockService {
                         "Insufficient stock for productId: " + item.getProductId());
             }
 
+            int quantityBefore = stock.getAvailableQuantity();
+
             stock.setAvailableQuantity(stock.getAvailableQuantity() - item.getQuantity());
             stock.setReservedQuantity(stock.getReservedQuantity() + item.getQuantity());
             stockRepository.save(stock);
@@ -76,6 +78,8 @@ public class StockServiceImpl implements StockService {
                     .productId(item.getProductId())
                     .quantity(item.getQuantity())
                     .status(ReservationStatus.RESERVED)
+                    .quantityBeforeReservation(quantityBefore)
+                    .quantityAfterReservation(stock.getAvailableQuantity())
                     .build();
 
             stockReservationRepository.save(reservation);
@@ -135,6 +139,7 @@ public class StockServiceImpl implements StockService {
             stockRepository.save(stock);
 
             reservation.setStatus(ReservationStatus.RELEASED);
+            reservation.setReleasedAt(Instant.now());
             stockReservationRepository.save(reservation);
 
             log.info("Stock released for productId={}, orderId={}",
@@ -144,7 +149,7 @@ public class StockServiceImpl implements StockService {
 
     @Override
     @Transactional
-    public void fulfillStock(ShipmentDeliveredEvent event) {
+    public void fulfillStock(ShipmentOutForDeliveryEvent event) {
 
         List<StockReservationEntity> reservations = stockReservationRepository
                 .findByOrderIdAndStatus(event.getOrderId(), ReservationStatus.RESERVED);
@@ -155,7 +160,16 @@ public class StockServiceImpl implements StockService {
         }
 
         for (StockReservationEntity reservation : reservations) {
+
+            StockEntity stock = stockRepository.findByProductId(reservation.getProductId())
+                    .orElseThrow(() -> new StockNotFoundException(
+                            "Stock not found for productId: " + reservation.getProductId()));
+
+            stock.setReservedQuantity(stock.getReservedQuantity() - reservation.getQuantity());
+            stockRepository.save(stock);
+
             reservation.setStatus(ReservationStatus.FULFILLED);
+            reservation.setFulfilledAt(Instant.now());
             stockReservationRepository.save(reservation);
 
             log.info("Stock fulfilled for productId={}, orderId={}",
