@@ -36,6 +36,7 @@ public class RabbitMQConfig {
     public static final String ORDER_CANCELLED_DLX = "ob.order.cancelled.shipping.dlx";
     public static final String ORDER_CANCELLED_DLQ = "ob.order.cancelled.shipping.dlq";
 
+    public static final String DEAD_LETTER_EXCHANGE_ARG = "x-dead-letter-exchange";
 
     // Inbound — stock reserved
     @Bean
@@ -51,7 +52,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue stockReservedQueue() {
         return QueueBuilder.durable(STOCK_RESERVED_QUEUE)
-                .withArgument("x-dead-letter-exchange", STOCK_RESERVED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, STOCK_RESERVED_DLX)
                 .build();
     }
 
@@ -110,7 +111,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue orderCancelledQueue() {
         return QueueBuilder.durable(ORDER_CANCELLED_QUEUE)
-                .withArgument("x-dead-letter-exchange", ORDER_CANCELLED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, ORDER_CANCELLED_DLX)
                 .build();
     }
 

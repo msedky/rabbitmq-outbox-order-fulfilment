@@ -53,6 +53,8 @@ public class RabbitMQConfig {
     public static final String SHIPMENT_FAILED_DLX = "ob.shipment.failed.order.dlx";
     public static final String SHIPMENT_FAILED_DLQ = "ob.shipment.failed.order.dlq";
 
+    public static final String DEAD_LETTER_EXCHANGE_ARG = "x-dead-letter-exchange";
+
     // Outbound exchanges only
     @Bean
     public TopicExchange orderPlacedExchange() {
@@ -78,7 +80,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue stockReservedQueue() {
         return QueueBuilder.durable(STOCK_RESERVED_QUEUE)
-                .withArgument("x-dead-letter-exchange", STOCK_RESERVED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, STOCK_RESERVED_DLX)
                 .build();
     }
 
@@ -117,7 +119,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue shipmentScheduledQueue() {
         return QueueBuilder.durable(SHIPMENT_SCHEDULED_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_SCHEDULED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, SHIPMENT_SCHEDULED_DLX)
                 .build();
     }
 
@@ -156,7 +158,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue shipmentOutForDeliveryQueue() {
         return QueueBuilder.durable(SHIPMENT_OUT_FOR_DELIVERY_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_OUT_FOR_DELIVERY_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, SHIPMENT_OUT_FOR_DELIVERY_DLX)
                 .build();
     }
 
@@ -195,7 +197,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue shipmentDeliveredQueue() {
         return QueueBuilder.durable(SHIPMENT_DELIVERED_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_DELIVERED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, SHIPMENT_DELIVERED_DLX)
                 .build();
     }
 
@@ -234,7 +236,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue shipmentFailedQueue() {
         return QueueBuilder.durable(SHIPMENT_FAILED_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_FAILED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, SHIPMENT_FAILED_DLX)
                 .build();
     }
 

@@ -31,10 +31,11 @@ public class RabbitMQConfig {
     public static final String SHIPMENT_OUT_FOR_DELIVERY_DLX = "ob.shipment.out-for-delivery.warehouse.dlx";
     public static final String SHIPMENT_OUT_FOR_DELIVERY_DLQ = "ob.shipment.out-for-delivery.warehouse.dlq";
 
-
     // Outbound exchange only
     public static final String STOCK_RESERVED_EXCHANGE = "ob.stock.reserved.exchange";
     public static final String STOCK_RESERVED_ROUTING_KEY = "ob.stock.reserved";
+
+    public static final String DEAD_LETTER_EXCHANGE_ARG = "x-dead-letter-exchange";
 
     // Inbound — order placed
     @Bean
@@ -50,7 +51,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue orderPlacedQueue() {
         return QueueBuilder.durable(ORDER_PLACED_QUEUE)
-                .withArgument("x-dead-letter-exchange", ORDER_PLACED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, ORDER_PLACED_DLX)
                 .build();
     }
 
@@ -89,7 +90,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue orderCancelledQueue() {
         return QueueBuilder.durable(ORDER_CANCELLED_QUEUE)
-                .withArgument("x-dead-letter-exchange", ORDER_CANCELLED_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, ORDER_CANCELLED_DLX)
                 .build();
     }
 
@@ -127,7 +128,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue shipmentOutForDeliveryQueue() {
         return QueueBuilder.durable(SHIPMENT_OUT_FOR_DELIVERY_QUEUE)
-                .withArgument("x-dead-letter-exchange", SHIPMENT_OUT_FOR_DELIVERY_DLX)
+                .withArgument(DEAD_LETTER_EXCHANGE_ARG, SHIPMENT_OUT_FOR_DELIVERY_DLX)
                 .build();
     }
 
