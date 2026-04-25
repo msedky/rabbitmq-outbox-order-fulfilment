@@ -1,7 +1,6 @@
 package com.rabbitmqoutbox.shippingservice.config;
 
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
@@ -98,33 +97,39 @@ public class RabbitMQConfig {
         return new TopicExchange(SHIPMENT_FAILED_EXCHANGE);
     }
 
-    @Bean public TopicExchange orderCancelledExchange() {
+    @Bean
+    public TopicExchange orderCancelledExchange() {
         return new TopicExchange(ORDER_CANCELLED_EXCHANGE);
     }
 
-    @Bean public TopicExchange orderCancelledDlx() {
+    @Bean
+    public TopicExchange orderCancelledDlx() {
         return new TopicExchange(ORDER_CANCELLED_DLX);
     }
 
-    @Bean public Queue orderCancelledQueue() {
+    @Bean
+    public Queue orderCancelledQueue() {
         return QueueBuilder.durable(ORDER_CANCELLED_QUEUE)
                 .withArgument("x-dead-letter-exchange", ORDER_CANCELLED_DLX)
                 .build();
     }
 
-    @Bean public Queue orderCancelledDlq() {
+    @Bean
+    public Queue orderCancelledDlq() {
         return QueueBuilder.durable(ORDER_CANCELLED_DLQ).build();
     }
 
-    @Bean public Binding orderCancelledBinding(TopicExchange orderCancelledExchange,
-                                               Queue orderCancelledQueue) {
+    @Bean
+    public Binding orderCancelledBinding(TopicExchange orderCancelledExchange,
+                                         Queue orderCancelledQueue) {
         return BindingBuilder.bind(orderCancelledQueue)
                 .to(orderCancelledExchange)
                 .with(ORDER_CANCELLED_ROUTING_KEY);
     }
 
-    @Bean public Binding orderCancelledDlqBinding(TopicExchange orderCancelledDlx,
-                                                  Queue orderCancelledDlq) {
+    @Bean
+    public Binding orderCancelledDlqBinding(TopicExchange orderCancelledDlx,
+                                            Queue orderCancelledDlq) {
         return BindingBuilder.bind(orderCancelledDlq)
                 .to(orderCancelledDlx)
                 .with("#");
@@ -141,16 +146,5 @@ public class RabbitMQConfig {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(messageConverter);
         return rabbitTemplate;
-    }
-
-    @Bean
-    public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
-            ConnectionFactory connectionFactory,
-            JacksonJsonMessageConverter messageConverter) {
-        SimpleRabbitListenerContainerFactory factory =
-                new SimpleRabbitListenerContainerFactory();
-        factory.setConnectionFactory(connectionFactory);
-        factory.setMessageConverter(messageConverter);
-        return factory;
     }
 }
