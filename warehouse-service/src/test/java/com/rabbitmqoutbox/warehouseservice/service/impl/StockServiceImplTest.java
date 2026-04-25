@@ -98,7 +98,7 @@ class StockServiceImplTest {
                     .updatedAt(Instant.now())
                     .build();
 
-            when(stockRepository.save(any(StockEntity.class))).thenReturn(stockEntity);
+            when(stockRepository.saveAndFlush(any(StockEntity.class))).thenReturn(stockEntity);
 
             // Act
             StockResponse result = stockService.create(request);
@@ -111,7 +111,7 @@ class StockServiceImplTest {
             assertThat(result.getAvailableQuantity()).isEqualTo(availableQuantity);
             assertThat(result.getReservedQuantity()).isEqualTo(0);
 
-            verify(stockRepository, times(1)).save(any(StockEntity.class));
+            verify(stockRepository, times(1)).saveAndFlush(any(StockEntity.class));
         }
 
         @Test
@@ -132,7 +132,7 @@ class StockServiceImplTest {
                     .reservedQuantity(0)
                     .build();
 
-            when(stockRepository.save(any(StockEntity.class))).thenReturn(stockEntity);
+            when(stockRepository.saveAndFlush(any(StockEntity.class))).thenReturn(stockEntity);
 
             // Act
             StockResponse result = stockService.create(request);
@@ -140,7 +140,7 @@ class StockServiceImplTest {
             // Assert - Actual mapper validates the mapping works
             assertThat(result.getAvailableQuantity()).isEqualTo(0);
             assertThat(result.getReservedQuantity()).isEqualTo(0);
-            verify(stockRepository, times(1)).save(any(StockEntity.class));
+            verify(stockRepository, times(1)).saveAndFlush(any(StockEntity.class));
         }
     }
 
@@ -532,62 +532,6 @@ class StockServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should release multiple reservations")
-        void testReleaseStockMultipleItems() {
-            // Arrange
-            UUID orderId = UUID.randomUUID();
-            OrderCancelledEvent event = OrderCancelledEvent.builder()
-                    .eventId(UUID.randomUUID().toString())
-                    .orderId(orderId)
-                    .customerId("CUST-001")
-                    .customerEmail("customer@example.com")
-                    .build();
-
-            StockReservationEntity reservation1 = StockReservationEntity.builder()
-                    .id(UUID.randomUUID())
-                    .orderId(orderId)
-                    .productId("PROD-001")
-                    .quantity(10)
-                    .status(ReservationStatus.RESERVED)
-                    .build();
-
-            StockReservationEntity reservation2 = StockReservationEntity.builder()
-                    .id(UUID.randomUUID())
-                    .orderId(orderId)
-                    .productId("PROD-002")
-                    .quantity(20)
-                    .status(ReservationStatus.RESERVED)
-                    .build();
-
-            StockEntity stock1 = StockEntity.builder()
-                    .productId("PROD-001")
-                    .availableQuantity(90)
-                    .reservedQuantity(10)
-                    .build();
-
-            StockEntity stock2 = StockEntity.builder()
-                    .productId("PROD-002")
-                    .availableQuantity(80)
-                    .reservedQuantity(20)
-                    .build();
-
-            when(stockReservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED))
-                    .thenReturn(List.of(reservation1, reservation2));
-            when(stockRepository.findByProductId("PROD-001")).thenReturn(Optional.of(stock1));
-            when(stockRepository.findByProductId("PROD-002")).thenReturn(Optional.of(stock2));
-            when(stockRepository.save(any(StockEntity.class))).thenReturn(stock1);
-            when(stockReservationRepository.save(any(StockReservationEntity.class)))
-                    .thenReturn(reservation1);
-
-            // Act
-            stockService.releaseStock(event);
-
-            // Assert
-            verify(stockRepository, times(2)).save(any(StockEntity.class));
-            verify(stockReservationRepository, times(2)).save(any(StockReservationEntity.class));
-        }
-
-        @Test
         @DisplayName("Should release stock successfully with multiple items (3 items)")
         void testReleaseStockSuccessWithMultipleItems() {
             // Arrange
@@ -739,7 +683,7 @@ class StockServiceImplTest {
         void testFulfillStockSuccess() {
             // Arrange
             UUID orderId = UUID.randomUUID();
-            ShipmentDeliveredEvent event = ShipmentDeliveredEvent.builder()
+            ShipmentOutForDeliveryEvent event = ShipmentOutForDeliveryEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .orderId(orderId)
                     .shipmentId(UUID.randomUUID())
@@ -753,8 +697,18 @@ class StockServiceImplTest {
                     .status(ReservationStatus.RESERVED)
                     .build();
 
+            StockEntity stock = StockEntity.builder()
+                    .id(stockId)
+                    .productId(productId)
+                    .productName(productName)
+                    .availableQuantity(90)
+                    .reservedQuantity(10)
+                    .build();
+
             when(stockReservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED))
                     .thenReturn(List.of(reservation));
+            when(stockRepository.findByProductId(productId)).thenReturn(Optional.of(stock));
+            when(stockRepository.save(any(StockEntity.class))).thenReturn(stock);
             when(stockReservationRepository.save(any(StockReservationEntity.class)))
                     .thenReturn(reservation);
 
@@ -762,7 +716,12 @@ class StockServiceImplTest {
             stockService.fulfillStock(event);
 
             // Assert
-            verify(stockReservationRepository, times(1)).findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED);
+            verify(stockReservationRepository, times(1))
+                    .findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED);
+            verify(stockRepository, times(1)).findByProductId(productId);
+            verify(stockRepository, times(1)).save(argThat(s ->
+                    s.getReservedQuantity() == 0
+            ));
             verify(stockReservationRepository, times(1)).save(argThat(r ->
                     r.getStatus() == ReservationStatus.FULFILLED
             ));
@@ -773,7 +732,7 @@ class StockServiceImplTest {
         void testFulfillStockNoReservationsFound() {
             // Arrange
             UUID orderId = UUID.randomUUID();
-            ShipmentDeliveredEvent event = ShipmentDeliveredEvent.builder()
+            ShipmentOutForDeliveryEvent event = ShipmentOutForDeliveryEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .orderId(orderId)
                     .shipmentId(UUID.randomUUID())
@@ -786,6 +745,8 @@ class StockServiceImplTest {
             stockService.fulfillStock(event);
 
             // Assert
+            verify(stockRepository, never()).findByProductId(any());
+            verify(stockRepository, never()).save(any());
             verify(stockReservationRepository, never()).save(any());
         }
 
@@ -794,7 +755,7 @@ class StockServiceImplTest {
         void testFulfillStockMultipleItems() {
             // Arrange
             UUID orderId = UUID.randomUUID();
-            ShipmentDeliveredEvent event = ShipmentDeliveredEvent.builder()
+            ShipmentOutForDeliveryEvent event = ShipmentOutForDeliveryEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .orderId(orderId)
                     .shipmentId(UUID.randomUUID())
@@ -816,8 +777,25 @@ class StockServiceImplTest {
                     .status(ReservationStatus.RESERVED)
                     .build();
 
+            StockEntity stock1 = StockEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productId("PROD-001")
+                    .availableQuantity(90)
+                    .reservedQuantity(10)
+                    .build();
+
+            StockEntity stock2 = StockEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productId("PROD-002")
+                    .availableQuantity(80)
+                    .reservedQuantity(20)
+                    .build();
+
             when(stockReservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED))
                     .thenReturn(List.of(reservation1, reservation2));
+            when(stockRepository.findByProductId("PROD-001")).thenReturn(Optional.of(stock1));
+            when(stockRepository.findByProductId("PROD-002")).thenReturn(Optional.of(stock2));
+            when(stockRepository.save(any(StockEntity.class))).thenReturn(stock1);
             when(stockReservationRepository.save(any(StockReservationEntity.class)))
                     .thenReturn(reservation1);
 
@@ -825,7 +803,42 @@ class StockServiceImplTest {
             stockService.fulfillStock(event);
 
             // Assert
+            verify(stockRepository, times(1)).findByProductId("PROD-001");
+            verify(stockRepository, times(1)).findByProductId("PROD-002");
+            verify(stockRepository, times(2)).save(any(StockEntity.class));
             verify(stockReservationRepository, times(2)).save(any(StockReservationEntity.class));
+        }
+
+        @Test
+        @DisplayName("Should throw StockNotFoundException when stock not found during fulfill")
+        void testFulfillStockStockNotFound() {
+            // Arrange
+            UUID orderId = UUID.randomUUID();
+            ShipmentOutForDeliveryEvent event = ShipmentOutForDeliveryEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .orderId(orderId)
+                    .shipmentId(UUID.randomUUID())
+                    .build();
+
+            StockReservationEntity reservation = StockReservationEntity.builder()
+                    .id(UUID.randomUUID())
+                    .orderId(orderId)
+                    .productId(productId)
+                    .quantity(10)
+                    .status(ReservationStatus.RESERVED)
+                    .build();
+
+            when(stockReservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED))
+                    .thenReturn(List.of(reservation));
+            when(stockRepository.findByProductId(productId)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            assertThatThrownBy(() -> stockService.fulfillStock(event))
+                    .isInstanceOf(StockNotFoundException.class)
+                    .hasMessageContaining("Stock not found");
+
+            verify(stockRepository, never()).save(any());
+            verify(stockReservationRepository, never()).save(any());
         }
     }
 }
