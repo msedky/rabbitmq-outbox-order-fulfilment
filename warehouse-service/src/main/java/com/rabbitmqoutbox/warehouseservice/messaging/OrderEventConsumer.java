@@ -6,7 +6,6 @@ import com.rabbitmqoutbox.warehouseservice.exception.InsufficientStockException;
 import com.rabbitmqoutbox.warehouseservice.exception.StockNotFoundException;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderCancelledEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEvent;
-import com.rabbitmqoutbox.warehouseservice.messaging.event.ShipmentDeliveredEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.ShipmentOutForDeliveryEvent;
 import com.rabbitmqoutbox.warehouseservice.service.StockService;
 import lombok.RequiredArgsConstructor;
