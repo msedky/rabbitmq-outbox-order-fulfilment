@@ -30,6 +30,8 @@ public class OrderServiceImpl implements OrderService {
     private final OutboxEventService outboxEventService;
     private final OrderMapper orderMapper;
 
+    private static final String ORDER_NOT_FOUND_MSG = "Order not found with id: ";
+
     @Override
     @Transactional
     public OrderResponse create(CreateOrderRequest request) {
@@ -100,7 +102,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse cancel(UUID orderId) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + orderId));
+                        ORDER_NOT_FOUND_MSG + orderId));
 
         if (order.getStatus() == OrderStatus.DELIVERED) {
             throw new IllegalStateException("Cannot cancel a delivered order");
@@ -150,7 +152,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse getById(UUID orderId) {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + orderId));
+                        ORDER_NOT_FOUND_MSG + orderId));
         return orderMapper.toResponse(order);
     }
 
@@ -165,7 +167,7 @@ public class OrderServiceImpl implements OrderService {
     public void confirmOrder(StockReservedEvent event) {
         OrderEntity order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + event.getOrderId()));
+                        ORDER_NOT_FOUND_MSG + event.getOrderId()));
 
         order.setStatus(OrderStatus.CONFIRMED);
         order.setConfirmedAt(Instant.now());
@@ -179,7 +181,7 @@ public class OrderServiceImpl implements OrderService {
     public void markAsShipped(ShipmentScheduledEvent event) {
         OrderEntity order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + event.getOrderId()));
+                        ORDER_NOT_FOUND_MSG + event.getOrderId()));
 
         order.setStatus(OrderStatus.SHIPPED);
         order.setShippedAt(Instant.now());
@@ -193,7 +195,7 @@ public class OrderServiceImpl implements OrderService {
     public void markAsDelivered(ShipmentDeliveredEvent event) {
         OrderEntity order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + event.getOrderId()));
+                        ORDER_NOT_FOUND_MSG + event.getOrderId()));
 
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(event.getDeliveredAt());
@@ -207,7 +209,7 @@ public class OrderServiceImpl implements OrderService {
     public void markAsOutForDelivery(ShipmentOutForDeliveryEvent event) {
         OrderEntity order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + event.getOrderId()));
+                        ORDER_NOT_FOUND_MSG + event.getOrderId()));
 
         order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
         order.setDispatchedAt(event.getDispatchedAt());
@@ -221,7 +223,7 @@ public class OrderServiceImpl implements OrderService {
     public void markAsFailed(ShipmentFailedEvent event) {
         OrderEntity order = orderRepository.findById(event.getOrderId())
                 .orElseThrow(() -> new OrderNotFoundException(
-                        "Order not found with id: " + event.getOrderId()));
+                        ORDER_NOT_FOUND_MSG + event.getOrderId()));
 
         order.setStatus(OrderStatus.FAILED);
         order.setFailedAt(event.getFailedAt());
