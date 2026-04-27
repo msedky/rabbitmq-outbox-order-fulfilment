@@ -30,8 +30,8 @@ public class OrderEventConsumer {
 
     private final OrderService orderService;
 
-    @Value("${spring.rabbitmq.listener.simple.retry.max-attempts}")
-    private int maxRetryAttempts;
+    @Value("${spring.rabbitmq.listener.simple.retry.max-retries}")
+    private int maxRetries;
 
     @RabbitListener(queues = RabbitMQConfig.STOCK_RESERVED_QUEUE)
     public void handleStockReserved(StockReservedEvent event,
@@ -96,7 +96,7 @@ public class OrderEventConsumer {
             channel.basicReject(deliveryTag, false);
         } catch (Exception e) {
             long retryCount = getRetryCount(xDeath);
-            if (retryCount >= maxRetryAttempts) {
+            if (retryCount >= maxRetries) {
                 log.error(MAX_RETRIES_REACHED_LOG, orderId);
                 channel.basicReject(deliveryTag, false);
             } else {
