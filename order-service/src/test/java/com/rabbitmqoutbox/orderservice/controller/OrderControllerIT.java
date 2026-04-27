@@ -47,7 +47,7 @@ class OrderControllerIT {
             .withPassword("test");
 
     @Container
-    static RabbitMQContainer rabbit = new RabbitMQContainer("rabbitmq:3.13-management-alpine");
+    static RabbitMQContainer rabbit = new RabbitMQContainer("rabbitmq:3-management-alpine");
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
