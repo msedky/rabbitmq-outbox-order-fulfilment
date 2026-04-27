@@ -2,6 +2,7 @@ package com.rabbitmqoutbox.warehouseservice.messaging;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmqoutbox.warehouseservice.config.RabbitMQConfig;
+import com.rabbitmqoutbox.warehouseservice.exception.InsufficientStockException;
 import com.rabbitmqoutbox.warehouseservice.exception.StockNotFoundException;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderCancelledEvent;
 import com.rabbitmqoutbox.warehouseservice.messaging.event.OrderPlacedEvent;
@@ -73,7 +74,7 @@ public class OrderEventConsumer {
         try {
             handler.handle();
             channel.basicAck(deliveryTag, false);
-        } catch (StockNotFoundException e) {
+        } catch (StockNotFoundException | InsufficientStockException e) {
             log.error(NON_RETRYABLE_FAILURE_LOG, orderId, e.getMessage());
             channel.basicReject(deliveryTag, false);
         } catch (Exception e) {
