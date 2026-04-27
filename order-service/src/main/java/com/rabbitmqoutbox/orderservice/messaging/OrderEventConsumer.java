@@ -1,10 +1,10 @@
 package com.rabbitmqoutbox.orderservice.messaging;
 
+import com.rabbitmq.client.Channel;
 import com.rabbitmqoutbox.orderservice.config.RabbitMQConfig;
 import com.rabbitmqoutbox.orderservice.exception.OrderNotFoundException;
 import com.rabbitmqoutbox.orderservice.messaging.event.*;
 import com.rabbitmqoutbox.orderservice.service.OrderService;
-import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
