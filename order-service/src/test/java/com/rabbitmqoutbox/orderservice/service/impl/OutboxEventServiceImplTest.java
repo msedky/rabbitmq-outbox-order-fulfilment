@@ -84,12 +84,7 @@ class OutboxEventServiceImplTest {
                 .thenThrow(new JsonProcessingException("Serialization failed") {
                 });
 
-        assertThatThrownBy(() -> outboxEventService.saveEvent(
-                aggregateId.toString(),
-                "ORDER",
-                "ORDER_PLACED",
-                payload
-        ))
+        assertThatThrownBy(() -> saveOrderPlacedEvent(payload))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Failed to serialize outbox event payload");
 
@@ -107,8 +102,9 @@ class OutboxEventServiceImplTest {
 
         List<OutboxEventEntity> result = outboxEventService.getPendingEvents();
 
-        assertThat(result).hasSize(2);
-        assertThat(result).containsExactly(event1, event2);
+        assertThat(result)
+                .hasSize(2)
+                .containsExactly(event1, event2);
 
         verify(outboxEventRepository, times(1))
                 .findByStatus(OutboxStatus.PENDING);
@@ -149,6 +145,15 @@ class OutboxEventServiceImplTest {
                 .payload("{\"orderId\":\"ORDER-001\"}")
                 .status(status)
                 .build();
+    }
+
+    private void saveOrderPlacedEvent(TestPayload payload) {
+        outboxEventService.saveEvent(
+                aggregateId.toString(),
+                "ORDER",
+                "ORDER_PLACED",
+                payload
+        );
     }
 
     private record TestPayload(String orderId, String status) {
