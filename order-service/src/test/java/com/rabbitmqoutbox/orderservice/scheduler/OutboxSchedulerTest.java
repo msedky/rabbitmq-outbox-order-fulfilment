@@ -27,6 +27,7 @@ class OutboxSchedulerTest {
     private OutboxEventPublisher outboxEventPublisher;
 
     private OutboxScheduler scheduler;
+
     @BeforeEach
     void setUp() {
         scheduler = new OutboxScheduler(outboxEventService, outboxEventPublisher);
