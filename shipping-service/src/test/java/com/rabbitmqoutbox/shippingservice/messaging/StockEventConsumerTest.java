@@ -1,7 +1,6 @@
 package com.rabbitmqoutbox.shippingservice.messaging;
 
 import com.rabbitmq.client.Channel;
-import com.rabbitmqoutbox.shippingservice.exception.ShipmentNotFoundException;
 import com.rabbitmqoutbox.shippingservice.messaging.event.StockReservedEvent;
 import com.rabbitmqoutbox.shippingservice.service.ShipmentService;
 import org.junit.jupiter.api.BeforeEach;
