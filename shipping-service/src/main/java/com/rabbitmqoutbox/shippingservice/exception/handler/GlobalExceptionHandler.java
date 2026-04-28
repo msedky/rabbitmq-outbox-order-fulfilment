@@ -5,10 +5,12 @@ import com.rabbitmqoutbox.shippingservice.model.dto.response.ApiError;
 import com.rabbitmqoutbox.shippingservice.model.dto.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -52,6 +54,25 @@ public class GlobalExceptionHandler {
                         .error(ApiError.builder()
                                 .code("INVALID_SHIPMENT_STATE")
                                 .message(ex.getMessage())
+                                .timestamp(Instant.now())
+                                .build())
+                        .build());
+    }
+
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentNotValidException(
+            MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.<Void>builder()
+                        .success(false)
+                        .data(null)
+                        .error(ApiError.builder()
+                                .code("VALIDATION_ERROR")
+                                .message(message)
                                 .timestamp(Instant.now())
                                 .build())
                         .build());
