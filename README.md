@@ -1,4 +1,4 @@
-# Outbox Pattern with RabbitMQ — Order Fulfillment Case Study
+# RabbitMQ Outbox Pattern — Order Fulfillment Case Study
 
 This repository demonstrates a practical implementation of the **Transactional Outbox Pattern** using **RabbitMQ** and **Spring Boot** microservices.
 
@@ -36,20 +36,18 @@ Instead of publishing directly to RabbitMQ, the event is saved into an `outbox_e
 
 A scheduler then polls the `outbox_events` table and publishes the events to RabbitMQ.
 
-Step 1 — same transaction:
+**Step 1 — same transaction:**
+- Save business data to DB
+- Save event to `outbox_events` table
 
-- save business data to DB
-- save event to outbox_events table
-
-Step 2 — scheduler (runs every 5 seconds):
-
-- poll outbox_events where status = PENDING
-- publish to RabbitMQ
-- mark as PUBLISHED
+**Step 2 — scheduler (runs every 5 seconds):**
+- Poll `outbox_events` where `status = PENDING`
+- Publish to RabbitMQ
+- Mark as `PUBLISHED`
 
 This guarantees that:
 - If the DB transaction fails → no event is saved → no duplicate message
-- If RabbitMQ is down → events stay PENDING → scheduler retries later
+- If RabbitMQ is down → events stay `PENDING` → scheduler retries later
 - No message is ever lost
 
 ---
@@ -59,22 +57,29 @@ This guarantees that:
 The system consists of three microservices simulating an order fulfillment flow:
 
 - **order-service**
-  - accepts order creation requests
+  - exposes REST APIs for placing and cancelling orders
   - saves order data in **PostgreSQL**
-  - saves `OrderPlacedEvent` in `outbox_events` table
-  - scheduler publishes event to RabbitMQ
+  - saves `OrderPlacedEvent` or `OrderCancelledEvent` in `outbox_events` in the same transaction
+  - scheduler publishes events to RabbitMQ
+  - consumes incoming events to update order status throughout its lifecycle
 
 - **warehouse-service**
-  - consumes `OrderPlacedEvent` from RabbitMQ
-  - reserves stock in **PostgreSQL**
-  - saves `StockReservedEvent` in `outbox_events` table
-  - scheduler publishes event to RabbitMQ
+  - exposes REST APIs for creating and viewing stocks
+  - saves stock data in **PostgreSQL**
+  - consumes `OrderPlacedEvent` → reserves stock
+  - consumes `OrderCancelledEvent` → releases reserved stock
+  - consumes `ShipmentOutForDeliveryEvent` → fulfills stock
+  - tracks each reservation in `stock_reservations` table with full audit fields
+  - saves `StockReservedEvent` in `outbox_events` in the same transaction
+  - scheduler publishes events to RabbitMQ
 
 - **shipping-service**
-  - consumes `StockReservedEvent` from RabbitMQ
-  - schedules shipment in **PostgreSQL**
-  - saves `ShipmentScheduledEvent` in `outbox_events` table
-  - scheduler publishes event to RabbitMQ
+  - exposes REST APIs for dispatching, delivering, and failing shipments
+  - saves shipment data in **PostgreSQL**
+  - consumes `StockReservedEvent` → schedules shipment
+  - consumes `OrderCancelledEvent` → cancels scheduled shipment
+  - saves shipment events in `outbox_events` in the same transaction
+  - scheduler publishes events to RabbitMQ
 
 ---
 
@@ -82,59 +87,121 @@ The system consists of three microservices simulating an order fulfillment flow:
 
 ```mermaid
 flowchart LR
+    Client[Client / Postman / Curl]
 
-    Client -->|POST /api/v1/orders| OrderService
-
-    subgraph order-service
-        OS1[Save Order]
-        OS2[Save OutboxEvent]
-        OS3[Scheduler]
+    subgraph OrderDomain[order-service]
+        OS[REST Controller]
+        ODB[(order_db PostgreSQL)]
+        OSCH[OutboxScheduler]
     end
 
-    subgraph warehouse-service
-        WS1[Reserve Stock]
-        WS2[Save OutboxEvent]
-        WS3[Scheduler]
+    subgraph WarehouseDomain[warehouse-service]
+        WS[StockService]
+        WDB[(warehouse_db PostgreSQL)]
+        WSCH[OutboxScheduler]
     end
 
-    subgraph shipping-service
-        SS1[Schedule Shipment]
-        SS2[Save OutboxEvent]
-        SS3[Scheduler]
+    subgraph ShippingDomain[shipping-service]
+        SS[ShipmentService]
+        SDB[(shipping_db PostgreSQL)]
+        SSCH[OutboxScheduler]
     end
 
-    OrderService --> OS1
-    OS1 --> OS2
-    OS2 -->|same transaction| OrderDB[(PostgreSQL)]
-    OS3 -->|poll PENDING| OrderDB
-    OS3 -->|publish| RabbitMQ1[RabbitMQ]
+    Client --> OS
+    OS -->|save order + event| ODB
+    OSCH -->|poll PENDING| ODB
+    OSCH -->|publish| RMQ[RabbitMQ]
 
-    RabbitMQ1 -->|OrderPlacedEvent| WS1
-    WS1 --> WS2
-    WS2 -->|same transaction| WarehouseDB[(PostgreSQL)]
-    WS3 -->|poll PENDING| WarehouseDB
-    WS3 -->|publish| RabbitMQ2[RabbitMQ]
+    RMQ -->|OrderPlacedEvent| WS
+    WS -->|save reservation + event| WDB
+    WSCH -->|poll PENDING| WDB
+    WSCH -->|publish| RMQ
 
-    RabbitMQ2 -->|StockReservedEvent| SS1
-    SS1 --> SS2
-    SS2 -->|same transaction| ShippingDB[(PostgreSQL)]
-    SS3 -->|poll PENDING| ShippingDB
-    SS3 -->|publish| RabbitMQ3[RabbitMQ]
+    RMQ -->|StockReservedEvent| OS
+    RMQ -->|StockReservedEvent| SS
+
+    SS -->|save shipment + event| SDB
+    SSCH -->|poll PENDING| SDB
+    SSCH -->|publish| RMQ
+
+    RMQ -->|ShipmentScheduledEvent| OS
+    RMQ -->|ShipmentOutForDeliveryEvent| OS
+    RMQ -->|ShipmentOutForDeliveryEvent| WS
+    RMQ -->|ShipmentDeliveredEvent| OS
+    RMQ -->|ShipmentFailedEvent| OS
+    RMQ -->|OrderCancelledEvent| WS
+    RMQ -->|OrderCancelledEvent| SS
 ```
 
 ---
 
-## Event Flow
+## Event Flows
+
+### Happy Path
 
 1. Client sends `POST /api/v1/orders` to order-service.
-2. order-service saves the order and an `OrderPlacedEvent` in the same DB transaction.
-3. order-service scheduler polls `outbox_events` and publishes `OrderPlacedEvent` to RabbitMQ.
-4. warehouse-service consumes `OrderPlacedEvent` and reserves stock.
-5. warehouse-service saves the reservation and a `StockReservedEvent` in the same DB transaction.
-6. warehouse-service scheduler polls `outbox_events` and publishes `StockReservedEvent` to RabbitMQ.
-7. shipping-service consumes `StockReservedEvent` and schedules a shipment.
-8. shipping-service saves the shipment and a `ShipmentScheduledEvent` in the same DB transaction.
-9. shipping-service scheduler polls `outbox_events` and publishes `ShipmentScheduledEvent` to RabbitMQ.
+2. order-service saves order (`PENDING`) and `OrderPlacedEvent` in the same DB transaction.
+3. OutboxScheduler publishes `OrderPlacedEvent` to RabbitMQ.
+4. warehouse-service consumes `OrderPlacedEvent`, reserves stock, saves `StockReservedEvent` in the same transaction.
+5. OutboxScheduler publishes `StockReservedEvent` to RabbitMQ.
+6. order-service consumes `StockReservedEvent` → order status becomes `CONFIRMED`.
+7. shipping-service consumes `StockReservedEvent`, schedules shipment, saves `ShipmentScheduledEvent` in the same transaction.
+8. OutboxScheduler publishes `ShipmentScheduledEvent` to RabbitMQ.
+9. order-service consumes `ShipmentScheduledEvent` → order status becomes `SHIPPED`.
+10. Courier calls `PATCH /api/v1/shipments/{id}/dispatch`.
+11. shipping-service saves `ShipmentOutForDeliveryEvent` in the same transaction.
+12. OutboxScheduler publishes `ShipmentOutForDeliveryEvent` to RabbitMQ.
+13. order-service consumes it → order status becomes `OUT_FOR_DELIVERY`.
+14. warehouse-service consumes it → stock reservation fulfilled (reserved quantity decremented).
+15. Courier calls `PATCH /api/v1/shipments/{id}/deliver`.
+16. shipping-service saves `ShipmentDeliveredEvent` in the same transaction.
+17. OutboxScheduler publishes `ShipmentDeliveredEvent` to RabbitMQ.
+18. order-service consumes it → order status becomes `DELIVERED`.
+
+---
+
+### Cancellation Flow
+
+1. Client calls `PATCH /api/v1/orders/{id}/cancel` — allowed only when order is `PENDING`, `CONFIRMED`, or `SHIPPED`.
+2. order-service saves order (`CANCELLED`) and `OrderCancelledEvent` in the same DB transaction.
+3. OutboxScheduler publishes `OrderCancelledEvent` to RabbitMQ.
+4. warehouse-service consumes it → releases reserved stock back to available.
+5. shipping-service consumes it → cancels the scheduled shipment.
+
+---
+
+### Failure Flow
+
+1. Courier calls `PATCH /api/v1/shipments/{id}/fail`.
+2. shipping-service saves `ShipmentFailedEvent` in the same transaction.
+3. OutboxScheduler publishes `ShipmentFailedEvent` to RabbitMQ.
+4. order-service consumes it → order status becomes `FAILED`.
+
+---
+
+## Order Statuses
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | Order created, waiting for stock reservation |
+| `CONFIRMED` | Stock reserved by warehouse |
+| `SHIPPED` | Shipment scheduled, waiting for courier pickup |
+| `OUT_FOR_DELIVERY` | Courier picked up, on the way to customer |
+| `DELIVERED` | Customer received the order |
+| `CANCELLED` | Order cancelled — only allowed before `OUT_FOR_DELIVERY` |
+| `FAILED` | Shipment delivery failed |
+
+---
+
+## Shipment Statuses
+
+| Status | Meaning |
+|---|---|
+| `SCHEDULED` | Shipment created, waiting for courier |
+| `OUT_FOR_DELIVERY` | Courier picked up, on the way |
+| `DELIVERED` | Delivered to customer |
+| `CANCELLED` | Cancelled due to order cancellation |
+| `FAILED` | Delivery failed |
 
 ---
 
@@ -169,9 +236,13 @@ flowchart LR
 
 ```text
 rabbitmq-outbox-order-fulfilment/
+├── README.md
 ├── order-service/
+│   └── TESTING.md
 ├── warehouse-service/
+│   └── TESTING.md
 ├── shipping-service/
+│   └── TESTING.md
 └── k8s/
     ├── 00-namespace.yaml
     ├── 01-secrets.yaml
@@ -190,12 +261,18 @@ rabbitmq-outbox-order-fulfilment/
 
 ## Running the Project
 
-Make sure Docker Desktop and Minikube are installed and running.
+Make sure Docker Desktop and Kubernetes are installed and running.
 
 ### 1. Start Minikube
 
 ```bash
 minikube start
+```
+
+Verify cluster:
+
+```bash
+kubectl get nodes
 ```
 
 ### 2. Enable Ingress Addon
@@ -207,12 +284,14 @@ minikube addons enable ingress
 ### 3. Configure Docker Environment
 
 Linux / Mac:
+
 ```bash
 eval $(minikube docker-env)
 ```
 
 Windows (PowerShell):
-```bash
+
+```powershell
 & minikube -p minikube docker-env --shell powershell | Invoke-Expression
 ```
 
@@ -233,11 +312,13 @@ kubectl apply -f k8s/
 ### 6. Verify Deployment
 
 Check pods:
+
 ```bash
 kubectl get pods -n rabbitmq-outbox
 ```
 
 Check services:
+
 ```bash
 kubectl get svc -n rabbitmq-outbox
 ```
@@ -245,16 +326,19 @@ kubectl get svc -n rabbitmq-outbox
 ### 7. Add Host Entry
 
 Get Minikube IP:
+
 ```bash
 minikube ip
 ```
 
 Add to your hosts file:
 
+```
 <minikube-ip>  rabbitmq-outbox.local
+```
 
-On Linux/Mac: `/etc/hosts`
-On Windows: `C:\Windows\System32\drivers\etc\hosts`
+- Linux/Mac: `/etc/hosts`
+- Windows: `C:\Windows\System32\drivers\etc\hosts`
 
 ### 8. Trace the Logs
 
@@ -275,13 +359,29 @@ minikube stop
 
 ## Service URLs
 
-### Via Ingress (after adding host entry)
+### order-service
 
-| Service | URL |
-|---|---|
-| order-service | `http://rabbitmq-outbox.local/api/v1/orders` |
-| warehouse-service | `http://rabbitmq-outbox.local/api/v1/stocks` |
-| shipping-service | `http://rabbitmq-outbox.local/api/v1/shipments` |
+Base URL:
+
+```text
+http://rabbitmq-outbox.local
+```
+
+### warehouse-service
+
+Base URL:
+
+```text
+http://rabbitmq-outbox.local
+```
+
+### shipping-service
+
+Base URL:
+
+```text
+http://rabbitmq-outbox.local
+```
 
 ### RabbitMQ Management UI
 
@@ -289,43 +389,102 @@ minikube stop
 kubectl port-forward svc/rabbitmq 15672:15672 -n rabbitmq-outbox
 ```
 
-Then open: `http://localhost:15672`
+Then open:
+
+```text
+http://localhost:15672
+```
 
 Default credentials:
+
+```text
 username: guest
 password: guest
+```
 
 ---
 
 ## API Endpoints
 
-### order-service
+### order-service Endpoints
+
+Place Order
 
 ```http
-POST   /api/v1/orders
-GET    /api/v1/orders/{orderId}
-GET    /api/v1/orders
+POST /api/v1/orders
 ```
 
-### warehouse-service
+Cancel Order
 
 ```http
-POST   /api/v1/stocks
-GET    /api/v1/stocks
+PATCH /api/v1/orders/{orderId}/cancel
 ```
 
-### shipping-service
+Get Order By Id
 
 ```http
-GET    /api/v1/shipments/{shipmentId}
-GET    /api/v1/shipments
+GET /api/v1/orders/{orderId}
+```
+
+Get All Orders
+
+```http
+GET /api/v1/orders
+```
+
+### warehouse-service Endpoints
+
+Create Stock
+
+```http
+POST /api/v1/stocks
+```
+
+Get All Stocks
+
+```http
+GET /api/v1/stocks
+```
+
+### shipping-service Endpoints
+
+Dispatch Shipment
+
+```http
+PATCH /api/v1/shipments/{shipmentId}/dispatch
+```
+
+Deliver Shipment
+
+```http
+PATCH /api/v1/shipments/{shipmentId}/deliver
+```
+
+Fail Shipment
+
+```http
+PATCH /api/v1/shipments/{shipmentId}/fail
+```
+
+Get Shipment By Id
+
+```http
+GET /api/v1/shipments/{shipmentId}
+```
+
+Get All Shipments
+
+```http
+GET /api/v1/shipments
 ```
 
 ---
 
 ## Curl Samples
 
-### Create Stock (run before placing orders)
+### warehouse-service
+
+#### Create Stock
 
 ```bash
 curl --location 'http://rabbitmq-outbox.local/api/v1/stocks' \
@@ -337,7 +496,17 @@ curl --location 'http://rabbitmq-outbox.local/api/v1/stocks' \
 }'
 ```
 
-### Place Order
+#### Get All Stocks
+
+```bash
+curl --location 'http://rabbitmq-outbox.local/api/v1/stocks'
+```
+
+---
+
+### order-service
+
+#### Place Order
 
 ```bash
 curl --location 'http://rabbitmq-outbox.local/api/v1/orders' \
@@ -358,19 +527,61 @@ curl --location 'http://rabbitmq-outbox.local/api/v1/orders' \
 }'
 ```
 
-### Get All Orders
+#### Cancel Order
+
+```bash
+curl --location --request PATCH \
+'http://rabbitmq-outbox.local/api/v1/orders/{orderId}/cancel'
+```
+
+#### Get Order By Id
+
+```bash
+curl --location 'http://rabbitmq-outbox.local/api/v1/orders/{orderId}'
+```
+
+#### Get All Orders
 
 ```bash
 curl --location 'http://rabbitmq-outbox.local/api/v1/orders'
 ```
 
-### Get All Stocks
+---
+
+### shipping-service
+
+#### Dispatch Shipment
 
 ```bash
-curl --location 'http://rabbitmq-outbox.local/api/v1/stocks'
+curl --location --request PATCH \
+'http://rabbitmq-outbox.local/api/v1/shipments/{shipmentId}/dispatch'
 ```
 
-### Get All Shipments
+#### Deliver Shipment
+
+```bash
+curl --location --request PATCH \
+'http://rabbitmq-outbox.local/api/v1/shipments/{shipmentId}/deliver'
+```
+
+#### Fail Shipment
+
+```bash
+curl --location --request PATCH \
+'http://rabbitmq-outbox.local/api/v1/shipments/{shipmentId}/fail' \
+--header 'Content-Type: application/json' \
+--data '{
+    "failureReason": "Delivery address not found"
+}'
+```
+
+#### Get Shipment By Id
+
+```bash
+curl --location 'http://rabbitmq-outbox.local/api/v1/shipments/{shipmentId}'
+```
+
+#### Get All Shipments
 
 ```bash
 curl --location 'http://rabbitmq-outbox.local/api/v1/shipments'
@@ -380,12 +591,28 @@ curl --location 'http://rabbitmq-outbox.local/api/v1/shipments'
 
 ## Testing
 
-The project contains automated tests including:
+The project contains automated tests for all three services.
+
+Each service has a dedicated `TESTING.md` documenting the full test coverage.
+
+Tests include:
 
 - unit tests for service layer logic
 - unit tests for outbox event saving behavior
-- integration tests for controller endpoints
-- Testcontainers-based tests for database-backed integration scenarios
+- unit tests for consumer message handling (ack/nack/retry/DLQ)
+- unit tests for outbox publisher strategy delegation
+- unit tests for outbox scheduler behavior
+- integration tests for controller endpoints using Testcontainers
+
+---
+
+## Known Simplifications
+
+This project intentionally simplifies certain real-world concerns to stay focused on the Outbox Pattern:
+
+- **Cancellation** is only allowed before `OUT_FOR_DELIVERY`. A full return flow where a courier returns the package to the warehouse is not implemented.
+- **Outbox scheduler** uses simple polling every 5 seconds. Production systems typically use CDC tools like Debezium for lower latency and better scalability.
+- **Consumer idempotency** is not implemented. In production, consumers should handle duplicate messages gracefully.
 
 ---
 
@@ -395,8 +622,12 @@ The Outbox Pattern solves one of the most common and dangerous problems in distr
 
 This project demonstrates:
 
-- Atomicity between DB write and event publishing
-- Resilience when RabbitMQ is temporarily unavailable
-- Clean separation of business logic and messaging concerns
-- Production-ready event flow across three independent services
-- Each service owns its own database — no shared state
+- atomicity between DB write and event publishing
+- resilience when RabbitMQ is temporarily unavailable
+- clean separation of business logic and messaging concerns
+- full event-driven status lifecycle across three independent services
+- each service owns its own database — no shared state
+- stock reservation audit trail with before/after quantity snapshots
+- Dead Letter Queue (DLQ) handling for failed message processing
+- manual acknowledgment (MANUAL ACK) for reliable message consumption
+- retry vs non-retryable failure classification in consumers
