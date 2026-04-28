@@ -2,12 +2,14 @@ package com.rabbitmqoutbox.shippingservice.messaging;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmqoutbox.shippingservice.config.RabbitMQConfig;
+import com.rabbitmqoutbox.shippingservice.exception.ShipmentNotFoundException;
 import com.rabbitmqoutbox.shippingservice.messaging.event.OrderCancelledEvent;
 import com.rabbitmqoutbox.shippingservice.service.ShipmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,9 @@ public class OrderEventConsumer {
 
     private final ShipmentService shipmentService;
 
+    @Value("${spring.rabbitmq.listener.simple.retry.max-retries}")
+    private int maxRetries;
+
     @RabbitListener(queues = RabbitMQConfig.ORDER_CANCELLED_QUEUE)
     public void handleOrderCancelled(OrderCancelledEvent event,
                                      Channel channel,
@@ -31,13 +36,13 @@ public class OrderEventConsumer {
         try {
             shipmentService.cancelShipment(event.getOrderId());
             channel.basicAck(deliveryTag, false);
-        } catch (IllegalStateException e) {
+        } catch (IllegalStateException | ShipmentNotFoundException e) {
             log.error("Non-retryable failure for orderId={}: {}",
                     event.getOrderId(), e.getMessage());
             channel.basicReject(deliveryTag, false);
         } catch (Exception e) {
             long retryCount = getRetryCount(xDeath);
-            if (retryCount >= 3) {
+            if (retryCount >= maxRetries) {
                 log.error("Max retries reached for orderId={}, sending to DLQ",
                         event.getOrderId());
                 channel.basicReject(deliveryTag, false);

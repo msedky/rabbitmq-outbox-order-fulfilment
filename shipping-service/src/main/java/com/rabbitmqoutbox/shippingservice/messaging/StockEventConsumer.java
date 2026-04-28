@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,9 @@ public class StockEventConsumer {
 
     private final ShipmentService shipmentService;
 
+    @Value("${spring.rabbitmq.listener.simple.retry.max-retries}")
+    private int maxRetries;
+
     @RabbitListener(queues = RabbitMQConfig.STOCK_RESERVED_QUEUE)
     public void handleStockReserved(StockReservedEvent event,
                                     Channel channel,
@@ -33,7 +37,7 @@ public class StockEventConsumer {
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
             long retryCount = getRetryCount(xDeath);
-            if (retryCount >= 3) {
+            if (retryCount >= maxRetries) {
                 log.error("Max retries reached for orderId={}, sending to DLQ",
                         event.getOrderId());
                 channel.basicReject(deliveryTag, false);
@@ -48,6 +52,6 @@ public class StockEventConsumer {
     private long getRetryCount(List<Map<String, Object>> xDeath) {
         if (xDeath == null || xDeath.isEmpty()) return 0L;
         Object count = xDeath.get(0).get("count");
-        return count instanceof Long ? (Long) count : 0L;
+        return count instanceof Long l ? l : 0L;
     }
 }
