@@ -1,0 +1,291 @@
+{
+  "info": {
+    "_postman_id": "5f03e936-7dd3-41ce-a40a-9540dc106527",
+    "name": "rabbitmq-outbox-order-fulfilment",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "3568702"
+  },
+  "item": [
+    {
+      "name": "order-service",
+      "item": [
+        {
+          "name": "createOrder",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"customerId\": \"CST-013-C\",\r\n    \"customerEmail\": \"myemail3@hotmail.com\",\r\n    \"deliveryAddress\": \"Adressssss0003\",\r\n    \"currency\": \"USD\",\r\n    \"items\": [\r\n        {\r\n            \"productId\": \"LAPTOP-001\",\r\n            \"productName\": \"Test Laptop\",\r\n            \"quantity\": 1,\r\n            \"unitPrice\": 850\r\n        }\r\n    ]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8021/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8021",
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "cancelOrder",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8021/api/v1/orders/:id/cancel",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8021",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                ":id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "b6d36ad5-3510-4f02-bdbb-e5a030223cfe"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getOrderById",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8021/api/v1/orders/:id",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8021",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "b6d36ad5-3510-4f02-bdbb-e5a030223cfe"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getAllOrders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8021/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8021",
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "shipping-service",
+      "item": [
+        {
+          "name": "dispatchShipment",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8022/api/v1/shipments/:id/dispatch",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8022",
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                ":id",
+                "dispatch"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "d77588e7-1d84-4d10-85bf-81c92a247efe"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "deliverShipment",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8022/api/v1/shipments/:id/deliver",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8022",
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                ":id",
+                "deliver"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "d77588e7-1d84-4d10-85bf-81c92a247efe"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getShipmentById",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8022/api/v1/shipments/:id",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8022",
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ce3f668a-3c31-4eae-9801-5e12b10b60fb"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getAllShipments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8022/api/v1/shipments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8022",
+              "path": [
+                "api",
+                "v1",
+                "shipments"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "warehouse-service",
+      "item": [
+        {
+          "name": "createStock",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"productId\": \"LAPTOP-001\",\r\n    \"productName\": \"Test Laptop\",\r\n    \"availableQuantity\": 10\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8023/api/v1/stocks",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8023",
+              "path": [
+                "api",
+                "v1",
+                "stocks"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "getAllStocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8023/api/v1/stocks",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8023",
+              "path": [
+                "api",
+                "v1",
+                "stocks"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

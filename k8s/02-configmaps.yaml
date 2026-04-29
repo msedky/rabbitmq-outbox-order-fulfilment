@@ -4,7 +4,8 @@ metadata:
   name: order-service-config
   namespace: rabbitmq-outbox
 data:
-  datasource-url: jdbc:postgresql://postgres-order:5432/order_db
+  datasource-url: "jdbc:postgresql://postgres-order:5432/order_db"
+  SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES: "3"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -12,8 +13,8 @@ metadata:
   name: warehouse-service-config
   namespace: rabbitmq-outbox
 data:
-  datasource-url: jdbc:postgresql://postgres-warehouse:5432/warehouse_db
-  SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES: 3
+  datasource-url: "jdbc:postgresql://postgres-warehouse:5432/warehouse_db"
+  SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES: "3"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -21,4 +22,5 @@ metadata:
   name: shipping-service-config
   namespace: rabbitmq-outbox
 data:
-  datasource-url: jdbc:postgresql://postgres-shipping:5432/shipping_db
+  datasource-url: "jdbc:postgresql://postgres-shipping:5432/shipping_db"
+  SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES: "3"

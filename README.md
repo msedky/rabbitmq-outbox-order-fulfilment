@@ -47,8 +47,10 @@ A scheduler then polls the `outbox_events` table and publishes the events to Rab
 
 This guarantees that:
 - If the DB transaction fails → no event is saved → no duplicate message
-- If RabbitMQ is down → events stay `PENDING` → scheduler retries later
-- No message is ever lost
+- If RabbitMQ is down → events stay `PENDING` → scheduler retries on next poll
+- If the consumer fails to process a message → it is retried up to a configured max attempts
+- If max retries are exhausted → message is routed to the **Dead Letter Queue (DLQ)** for inspection and manual recovery
+- No message is ever silently lost
 
 ---
 
@@ -57,7 +59,7 @@ This guarantees that:
 The system consists of three microservices simulating an order fulfillment flow:
 
 - **order-service**
-  - exposes REST APIs for placing and cancelling orders
+  - exposes REST APIs for placing ,cancelling and viewing orders
   - saves order data in **PostgreSQL**
   - saves `OrderPlacedEvent` or `OrderCancelledEvent` in `outbox_events` in the same transaction
   - scheduler publishes events to RabbitMQ
@@ -135,7 +137,7 @@ flowchart LR
 
 ---
 
-## Event Flows
+## 🔄 Event Flows
 
 ### Happy Path
 
@@ -179,7 +181,9 @@ flowchart LR
 
 ---
 
-## Order Statuses
+## Statuses
+
+### Order Statuses
 
 | Status | Meaning |
 |---|---|
@@ -190,10 +194,9 @@ flowchart LR
 | `DELIVERED` | Customer received the order |
 | `CANCELLED` | Order cancelled — only allowed before `OUT_FOR_DELIVERY` |
 | `FAILED` | Shipment delivery failed |
+...
 
----
-
-## Shipment Statuses
+### Shipment Statuses
 
 | Status | Meaning |
 |---|---|
@@ -202,10 +205,9 @@ flowchart LR
 | `DELIVERED` | Delivered to customer |
 | `CANCELLED` | Cancelled due to order cancellation |
 | `FAILED` | Delivery failed |
+...
 
----
-
-## Outbox Event Statuses
+### Outbox Event Statuses
 
 | Status | Meaning |
 |---|---|
@@ -237,6 +239,7 @@ flowchart LR
 ```text
 rabbitmq-outbox-order-fulfilment/
 ├── README.md
+├── rabbitmq-outbox-order-fulfilment.postman_collection.json
 ├── order-service/
 │   └── TESTING.md
 ├── warehouse-service/
@@ -261,7 +264,7 @@ rabbitmq-outbox-order-fulfilment/
 
 ## Running the Project
 
-Make sure Docker Desktop and Kubernetes are installed and running.
+Make sure Docker Desktop, Minikube, kubectl, Java 21, and Maven are installed and running.
 
 ### 1. Start Minikube
 
@@ -283,19 +286,53 @@ minikube addons enable ingress
 
 ### 3. Configure Docker Environment
 
+This step points your shell to Minikube's internal Docker daemon so that images built in the next steps are available to Kubernetes.
+
+> ⚠️ **Important:** Steps 4 and 5 must be run in the **same terminal session** as this step. If you close the terminal or open a new one, you must run this command again before building images.
+
 Linux / Mac:
 
 ```bash
 eval $(minikube docker-env)
 ```
 
-Windows (PowerShell):
+Windows (PowerShell only — do not use CMD):
 
 ```powershell
 & minikube -p minikube docker-env --shell powershell | Invoke-Expression
 ```
 
-### 4. Build Docker Images
+Verify you are pointing to Minikube's daemon:
+
+```bash
+docker images
+```
+
+You should see Minikube internal images like `registry.k8s.io/pause` and `registry.k8s.io/coredns`. You should **not** see `gcr.io/k8s-minikube/kicbase` — if you do, the command did not work and you are still pointing to Docker Desktop.
+
+### 4. Build JAR Files
+
+Run from the root folder of the project in the **same terminal session**:
+
+Linux / Mac:
+
+```bash
+cd order-service && mvn clean package -DskipTests && cd ..
+cd warehouse-service && mvn clean package -DskipTests && cd ..
+cd shipping-service && mvn clean package -DskipTests && cd ..
+```
+
+Windows (PowerShell):
+
+```powershell
+cd order-service; mvn clean package -DskipTests; cd ..
+cd warehouse-service; mvn clean package -DskipTests; cd ..
+cd shipping-service; mvn clean package -DskipTests; cd ..
+```
+
+### 5. Build Docker Images
+
+Run in the **same terminal session** as Step 3:
 
 ```bash
 docker build -t order-service:latest ./order-service
@@ -303,13 +340,29 @@ docker build -t warehouse-service:latest ./warehouse-service
 docker build -t shipping-service:latest ./shipping-service
 ```
 
-### 5. Deploy to Kubernetes
+Verify images are available inside Minikube:
+
+Linux / Mac:
+
+```bash
+docker images | grep service
+```
+
+Windows (PowerShell):
+
+```powershell
+docker images | Select-String "service"
+```
+
+You should see `order-service`, `warehouse-service`, and `shipping-service` in the list.
+
+### 6. Deploy to Kubernetes
 
 ```bash
 kubectl apply -f k8s/
 ```
 
-### 6. Verify Deployment
+### 7. Verify Deployment
 
 Check pods:
 
@@ -317,13 +370,17 @@ Check pods:
 kubectl get pods -n rabbitmq-outbox
 ```
 
+All pods should show `Running` status. If any pod shows `ErrImageNeverPull` it means Step 3 was not run in the same terminal session as Steps 4 and 5 — go back to Step 3 and repeat Steps 3, 4, and 5 in the same terminal.
+
 Check services:
 
 ```bash
 kubectl get svc -n rabbitmq-outbox
 ```
 
-### 7. Add Host Entry
+### 8. Add Host Entry
+
+**Linux / Mac:**
 
 Get Minikube IP:
 
@@ -331,16 +388,31 @@ Get Minikube IP:
 minikube ip
 ```
 
-Add to your hosts file:
-
-```
+Add to `/etc/hosts` (requires sudo):
 <minikube-ip>  rabbitmq-outbox.local
+
+**Windows:**
+
+Add to `C:\Windows\System32\drivers\etc\hosts` (open Notepad as Administrator):
+127.0.0.1  rabbitmq-outbox.local
+
+---
+
+**Windows users only — Run Minikube Tunnel:**
+
+Minikube on Windows with the Docker driver requires an active tunnel to make the Ingress accessible from your machine.
+
+Open a **new PowerShell window as Administrator** and run:
+
+```powershell
+minikube tunnel
 ```
 
-- Linux/Mac: `/etc/hosts`
-- Windows: `C:\Windows\System32\drivers\etc\hosts`
+> ⚠️ Keep this window open while testing. Closing it will stop the tunnel and the Ingress will become unreachable again.
 
-### 8. Trace the Logs
+---
+
+### 9. Trace the Logs
 
 ```bash
 kubectl logs deployment/order-service -n rabbitmq-outbox -f
@@ -348,7 +420,7 @@ kubectl logs deployment/warehouse-service -n rabbitmq-outbox -f
 kubectl logs deployment/shipping-service -n rabbitmq-outbox -f
 ```
 
-### 9. Stop / Remove
+### 10. Stop / Remove
 
 ```bash
 kubectl delete -f k8s/
@@ -359,29 +431,33 @@ minikube stop
 
 ## Service URLs
 
-### order-service
+### Via Ingress
 
-Base URL:
+All platforms after completing Step 8:
 
-```text
-http://rabbitmq-outbox.local
+| Service | URL |
+|---|---|
+| order-service | `http://rabbitmq-outbox.local/api/v1/orders` |
+| warehouse-service | `http://rabbitmq-outbox.local/api/v1/stocks` |
+| shipping-service | `http://rabbitmq-outbox.local/api/v1/shipments` |
+
+### Via Port Forward (alternative)
+
+If Ingress is not accessible, use port-forward as an alternative — run each in a separate terminal:
+
+```bash
+kubectl port-forward svc/order-service 8021:8021 -n rabbitmq-outbox
+kubectl port-forward svc/warehouse-service 8023:8023 -n rabbitmq-outbox
+kubectl port-forward svc/shipping-service 8022:8022 -n rabbitmq-outbox
 ```
 
-### warehouse-service
+Then access via:
 
-Base URL:
-
-```text
-http://rabbitmq-outbox.local
-```
-
-### shipping-service
-
-Base URL:
-
-```text
-http://rabbitmq-outbox.local
-```
+| Service | URL |
+|---|---|
+| order-service | `http://localhost:8021` |
+| warehouse-service | `http://localhost:8023` |
+| shipping-service | `http://localhost:8022` |
 
 ### RabbitMQ Management UI
 

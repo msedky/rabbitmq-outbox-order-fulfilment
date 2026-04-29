@@ -3,8 +3,6 @@ kind: Ingress
 metadata:
   name: rabbitmq-outbox-ingress
   namespace: rabbitmq-outbox
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:

@@ -40,9 +40,20 @@ spec:
             - name: SPRING_RABBITMQ_PORT
               value: "5672"
             - name: SPRING_RABBITMQ_USERNAME
-              value: guest
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: username
             - name: SPRING_RABBITMQ_PASSWORD
-              value: guest
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+            - name: SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES
+              valueFrom:
+                configMapKeyRef:
+                  name: shipping-service-config
+                  key: SPRING_RABBITMQ_LISTENER_SIMPLE_RETRY_MAX_RETRIES
 ---
 apiVersion: v1
 kind: Service
